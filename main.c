@@ -34,12 +34,13 @@ int main() {
 	//get file
 	getFilename(filename);
 
+	int num_lines = count_csv_lines(filename);
 
 	//open file
 	fp = fopen(filename, "r");
 
 	//get the dataset from file 
-	getContentsFromCSV(dataset, fp,range);
+	getContentsFromCSV(dataset, fp, num_lines);
 
 	// int size = sizeof(dataset) / sizeof(dataset[0]);
 
@@ -86,11 +87,11 @@ int main() {
 	diff = NULL;
 		*/
 
-	arima_diff_avx2(range, dataset, diff);
+	arima_diff_avx2(num_lines, dataset, diff);
 
 	printf("\n");
 
-	for (int i = (range-10);i < range;i++)
+	for (int i = (num_lines -10);i < num_lines-1;i++)
 		printf("[%d]: %f\n", i + 1, diff[i]);
 	printf("\n");
 
@@ -99,7 +100,7 @@ int main() {
 	diff = NULL;
 	
 
-	checkVal(range, dataset);
+	checkVal(num_lines, dataset);
 
 	
 
@@ -108,10 +109,10 @@ int main() {
 	return 0;
 }
 
-void checkVal(size_t n, float* x)
+void checkVal(int n, float* x )
 {
 	printf("\n----------------Check Value------------------\n");
-	for (int i = (5258-10);i < 5258;i++) {
+	for (int i = (n-10);i < n-1;i++) {
 		printf("[%d]: %llf\n", i + 1, x[i+1] - x[i]);
 	}
 }
@@ -212,4 +213,22 @@ void getContentsFromCSV(float* dataset, FILE* fp, int maxSize) {
 			token = strtok(NULL, ",");
 		}
 	}
+}
+
+int count_csv_lines(const char* filename) {
+	FILE* file = fopen(filename, "r");
+	if (file == NULL) {
+		perror("Error opening file");
+		return -1;
+	}
+
+	int lines = 0;
+	char buffer[1024];  // Buffer to hold each line
+
+	while (fgets(buffer, sizeof(buffer), file)) {
+		lines++;  // Count each line read
+	}
+
+	fclose(file);
+	return lines-1;
 }
