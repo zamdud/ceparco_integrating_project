@@ -47,10 +47,10 @@ int main() {
 	fclose(fp);
 	printf("%lf ", dataset[0]);
 
-	for (int i = 0;i < range;i++)
-	{
-		printf("[%d]: %lf\n", i + 1, dataset[i]);
-	}
+	//for (int i = 0;i < range;i++)
+	//{
+	//	printf("[%d]: %lf\n", i + 1, dataset[i]);
+	//}
 
 	
 	
@@ -84,7 +84,7 @@ int main() {
 
 	free(diff);
 	diff = NULL;
-	
+		*/
 
 	arima_diff_avx2(range, dataset, diff);
 
@@ -100,7 +100,7 @@ int main() {
 	
 
 	checkVal(range, dataset);
-	*/
+
 	
 
 	free(dataset);
