@@ -2,12 +2,17 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <time.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAX_LINE_LENGTH 1024  // Maximum size for each line in CSV
+#define MAX_COLUMNS 100       // Assumed max number of columns in CSV
 
 extern void arima_diff_avx2(size_t n, float* x,float* dest);
 
 //function prototypes
 void getFilename(char* filename);
-void getContentsFromFile(float* dataset, FILE* fp);
+void getContentsFromCSV(float* dataset, FILE* fp, int maxSize);
 void checkVal(size_t n, float* x);
 
 int main() {
@@ -29,12 +34,13 @@ int main() {
 	//get file
 	getFilename(filename);
 
+	int num_lines = count_csv_lines(filename);
 
 	//open file
 	fp = fopen(filename, "r");
 
 	//get the dataset from file 
-	getContentsFromFile(dataset, fp);
+	getContentsFromCSV(dataset, fp, num_lines);
 
 	// int size = sizeof(dataset) / sizeof(dataset[0]);
 
@@ -79,14 +85,13 @@ int main() {
 
 	free(diff);
 	diff = NULL;
-	*/
-	
+		*/
 
-	arima_diff_avx2(range, dataset, diff);
+	arima_diff_avx2(num_lines, dataset, diff);
 
 	printf("\n");
 
-	for (int i = (range-10);i < range;i++)
+	for (int i = (num_lines -10);i < num_lines-1;i++)
 		printf("[%d]: %f\n", i + 1, diff[i]);
 	printf("\n");
 
@@ -95,7 +100,8 @@ int main() {
 	diff = NULL;
 	
 
-	checkVal(range, dataset);
+	checkVal(num_lines, dataset);
+
 	
 
 	free(dataset);
@@ -103,10 +109,10 @@ int main() {
 	return 0;
 }
 
-void checkVal(size_t n, float* x)
+void checkVal(int n, float* x )
 {
 	printf("\n----------------Check Value------------------\n");
-	for (int i = (5258-10);i < 5258;i++) {
+	for (int i = (n-10);i < n-1;i++) {
 		printf("[%d]: %llf\n", i + 1, x[i+1] - x[i]);
 	}
 }
@@ -131,14 +137,98 @@ void getFilename(char* filename) {
 
 }
 
-void getContentsFromFile(float* dataset, FILE* fp) {
+// Trim leading and trailing whitespace
+char* trimWhitespace(char* str) {
+	while (isspace((unsigned char)*str)) str++;  // Trim leading spaces
+	if (*str == 0) return str;                   // Empty string case
+
+	char* end = str + strlen(str) - 1;
+	while (end > str && isspace((unsigned char)*end)) end--;
+	*(end + 1) = 0;  // Null-terminate after last non-space character
+	return str;
+}
+
+// Find the column index where "value" is located
+int findValueColumnIndex(char* header) {
+	char headerCopy[MAX_LINE_LENGTH];  // Preserve original
+	strncpy(headerCopy, header, MAX_LINE_LENGTH);
+
+	char* token;
+	int colIndex = 0;
+
+	token = strtok(headerCopy, ",");
+	while (token != NULL) {
+		token = trimWhitespace(token);
+		if (strcmp(token, "value") == 0) {
+			return colIndex;
+		}
+		colIndex++;
+		token = strtok(NULL, ",");
+	}
+
+	return -1;  // Column not found
+}
+
+// Read and store "value" column data
+void getContentsFromCSV(float* dataset, FILE* fp, int maxSize) {
+	char line[MAX_LINE_LENGTH];
 	int k = 0;
+	int valueColumn = -1;
 
-	printf("\nReading contents...\n");
-	while (!feof(fp)) {
+	// Read header row and find "value" column
+	if (fgets(line, MAX_LINE_LENGTH, fp)) {
+		valueColumn = findValueColumnIndex(line);
+		if (valueColumn == -1) {
+			printf("Error: 'value' column not found.\n");
+			return;
+		}
+	}
+	else {
+		printf("Error: Could not read header row.\n");
+		return;
+	}
 
-		fscanf(fp, "%f", &dataset[k]);
-		k++;
-	};
+	printf("\nReading contents from 'value' column...\n");
 
+	// Read each line and extract values
+	while (fgets(line, MAX_LINE_LENGTH, fp) && k < maxSize) {
+		char* token;
+		int colIndex = 0;
+
+		token = strtok(line, ",");
+		while (token != NULL) {
+			token = trimWhitespace(token);
+			if (colIndex == valueColumn) {  // Extract the correct column
+				if (strlen(token) == 0) {   // Handle empty values
+					printf("Warning: Empty value at row %d, setting to 0.\n", k + 1);
+					dataset[k] = 0.0f;
+				}
+				else {
+					dataset[k] = strtof(token, NULL);
+				}
+				k++;
+				break;
+			}
+			colIndex++;
+			token = strtok(NULL, ",");
+		}
+	}
+}
+
+int count_csv_lines(const char* filename) {
+	FILE* file = fopen(filename, "r");
+	if (file == NULL) {
+		perror("Error opening file");
+		return -1;
+	}
+
+	int lines = 0;
+	char buffer[1024];  // Buffer to hold each line
+
+	while (fgets(buffer, sizeof(buffer), file)) {
+		lines++;  // Count each line read
+	}
+
+	fclose(file);
+	return lines-1;
 }
